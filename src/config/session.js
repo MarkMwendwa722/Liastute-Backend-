@@ -3,11 +3,11 @@ const ConnectPgSimple = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 
 const pgPool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host: 'localhost',
+  port: 5432,
+  database: 'liastute_db',
+  user: 'postgres',
+  password: '258096',
 });
 
 const sessionConfig = {
@@ -16,14 +16,14 @@ const sessionConfig = {
     tableName: 'session',
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET,
+  secret: 'your_session_secret',
   resave: false,
   saveUninitialized: false,
   name: 'liastute.sid',
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: false,
+    sameSite: 'lax',
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   },
 };

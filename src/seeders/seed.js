@@ -1,4 +1,4 @@
-require('dotenv').config();
+// dotenv removed
 const { sequelize, Category, Product } = require('../models');
 
 const categories = [

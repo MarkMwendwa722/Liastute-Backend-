@@ -1,8 +1,8 @@
-require('dotenv').config();
+// dotenv removed
 const app = require('./src/app');
 const { sequelize } = require('./src/models');
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 const start = async () => {
   try {
@@ -10,13 +10,12 @@ const start = async () => {
     console.log('Database connection established.');
 
     // Sync models — use { alter: true } in dev, migrations in production
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
-      console.log('Database synced.');
-    }
+    // Always sync in dev
+    await sequelize.sync({ alter: true });
+    console.log('Database synced.');
 
     app.listen(PORT, () => {
-      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {
     console.error('Failed to start server:', err);

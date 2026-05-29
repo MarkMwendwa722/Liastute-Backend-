@@ -1,4 +1,4 @@
-require('dotenv').config();
+// dotenv removed
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -26,16 +26,15 @@ app.use(helmet());
 
 // CORS
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Accept'],
 }));
 
 // Logging
-if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-}
+// Logging always enabled in dev mode
+app.use(morgan('dev'));
 
 // Stripe webhook removed
 
