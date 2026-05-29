@@ -1,4 +1,9 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const getStripe = () => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY environment variable is not set.');
+  }
+  return require('stripe')(process.env.STRIPE_SECRET_KEY);
+};
 const { Order } = require('../models');
 
 const createPaymentIntent = async (req, res, next) => {
@@ -14,6 +19,7 @@ const createPaymentIntent = async (req, res, next) => {
 
     const amountInCents = Math.round(parseFloat(order.total) * 100);
 
+    const stripe = getStripe();
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: process.env.STRIPE_CURRENCY || 'usd',
@@ -37,6 +43,7 @@ const stripeWebhook = async (req, res, next) => {
   let event;
 
   try {
+    const stripe = getStripe();
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     return res.status(400).json({ success: false, message: `Webhook error: ${err.message}` });
