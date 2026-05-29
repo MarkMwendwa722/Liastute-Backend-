@@ -2,10 +2,10 @@ const { Sequelize } = require('sequelize');
 
 // ─── Database credentials ───────────────────────────────────────────────────
 const DB_NAME     = 'liastute_db';
-const DB_USER     = 'postgres';
-const DB_PASSWORD = '258096'; // ← put your password here
-const DB_HOST     = 'localhost';
-const DB_PORT     = 5722;
+const DB_USER     = 'liastute_db_user';
+const DB_PASSWORD = 'I6fr7tw1qrdBSuqzHWEO9J6FuuNGjHSE';
+const DB_HOST     = 'dpg-d8cko5gg4nts738pdscg-a';
+const DB_PORT     = 5432;
 // ────────────────────────────────────────────────────────────────────────────
 
 const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {

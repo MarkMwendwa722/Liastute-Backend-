@@ -3,11 +3,11 @@ const ConnectPgSimple = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 
 const pgPool = new Pool({
-  host: 'localhost',
+  host: 'dpg-d8cko5gg4nts738pdscg-a',
   port: 5432,
   database: 'liastute_db',
-  user: 'postgres',
-  password: '258096',
+  user: 'liastute_db_user',
+  password: 'I6fr7tw1qrdBSuqzHWEO9J6FuuNGjHSE',
 });
 
 const sessionConfig = {
