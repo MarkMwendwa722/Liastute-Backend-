@@ -1,5 +1,5 @@
-const { v4: uuidv4 } = require('uuid');
-const { Order, OrderItem, Cart, CartItem, Product, sequelize } = require('../models');
+const { Order, OrderItem, Cart, CartItem, Product, User, sequelize } = require('../models');
+const { sendOrderNotification } = require('./emailController');
 
 const generateOrderNumber = () => {
   const ts = Date.now().toString(36).toUpperCase();
@@ -10,7 +10,7 @@ const generateOrderNumber = () => {
 const createOrder = async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
-    const { shippingAddress, notes } = req.body;
+    const { shippingAddress, notes, sourceUrl, orderUrl, from } = req.body;
 
     if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.country) {
       await t.rollback();
@@ -78,10 +78,27 @@ const createOrder = async (req, res, next) => {
 
     await t.commit();
 
+    let emailNotificationSent = false;
+    try {
+      const user = await User.findByPk(req.session.userId, {
+        attributes: ['firstName', 'lastName', 'email', 'phone'],
+      });
+
+      await sendOrderNotification({
+        order,
+        items: orderItems,
+        user,
+        sourceUrl: sourceUrl || orderUrl || from,
+      });
+      emailNotificationSent = true;
+    } catch (emailErr) {
+      console.error('Order notification email failed:', emailErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Order placed successfully.',
-      data: { ...order.toJSON(), items: orderItems },
+      data: { ...order.toJSON(), items: orderItems, emailNotificationSent },
     });
   } catch (err) {
     await t.rollback();

@@ -1,8 +1,24 @@
-// dotenv removed
+require('dotenv').config();
 const app = require('./src/app');
 const { sequelize } = require('./src/models');
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
+
+const logDatabaseStartupError = (err) => {
+  if (err && err.name === 'SequelizeHostNotFoundError') {
+    console.error(
+      'Database host was not found. If you are running locally with a Render database, use Render\'s External Database URL in DATABASE_URL. The Internal Database URL only works from inside Render.',
+    );
+  }
+
+  if (err && err.name === 'SequelizeConnectionRefusedError') {
+    console.error(
+      'Database connection was refused. Start your local Postgres server, or set DATABASE_URL in .env to a reachable Postgres database.',
+    );
+  }
+
+  console.error('Failed to start server:', err);
+};
 
 const start = async () => {
   try {
@@ -18,7 +34,7 @@ const start = async () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {
-    console.error('Failed to start server:', err);
+    logDatabaseStartupError(err);
     process.exit(1);
   }
 };
