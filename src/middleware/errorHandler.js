@@ -7,10 +7,7 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ success: false, message: 'Validation error', errors: messages });
   }
 
-  // Stripe errors
-  if (err.type && err.type.startsWith('Stripe')) {
-    return res.status(400).json({ success: false, message: err.message });
-  }
+  // Stripe error handling removed
 
   const status = err.status || err.statusCode || 500;
   const message = status < 500 ? err.message : 'Internal server error';

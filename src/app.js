@@ -15,7 +15,7 @@ const productRoutes = require('./routes/products');
 const categoryRoutes = require('./routes/categories');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
-const paymentRoutes = require('./routes/payments');
+// Payment routes removed
 const adminRoutes = require('./routes/admin');
 
 const app = express();
@@ -37,8 +37,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 }
 
-// Stripe webhook must be parsed as raw before express.json()
-app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+// Stripe webhook removed
 
 // Body parsing
 app.use(express.json({ limit: '10kb' }));
@@ -59,7 +58,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/payments', paymentRoutes);
+// Payment routes removed
 app.use('/api/admin', adminRoutes);
 
 // 404 & Error handling

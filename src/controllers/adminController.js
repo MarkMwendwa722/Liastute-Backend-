@@ -8,7 +8,7 @@ const getDashboardStats = async (req, res, next) => {
       User.count({ where: { role: 'customer', isActive: true } }),
       Product.count({ where: { isActive: true } }),
       Order.count(),
-      Order.sum('total', { where: { paymentStatus: 'paid' } }),
+      Order.sum('total'),
     ]);
 
     const recentOrders = await Order.findAll({
@@ -82,10 +82,9 @@ const toggleUserStatus = async (req, res, next) => {
 // Orders management
 const getAllOrders = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, status, paymentStatus } = req.query;
+    const { page = 1, limit = 20, status } = req.query;
     const where = {};
     if (status) where.status = status;
-    if (paymentStatus) where.paymentStatus = paymentStatus;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { count, rows } = await Order.findAndCountAll({

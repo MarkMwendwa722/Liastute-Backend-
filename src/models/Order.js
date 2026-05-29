@@ -41,18 +41,7 @@ const Order = sequelize.define('Order', {
     type: DataTypes.JSONB,
     allowNull: false,
   },
-  paymentStatus: {
-    type: DataTypes.ENUM('pending', 'paid', 'failed', 'refunded'),
-    defaultValue: 'pending',
-  },
-  paymentMethod: {
-    type: DataTypes.STRING(50),
-    allowNull: true,
-  },
-  stripePaymentIntentId: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-  },
+  // Payment fields removed (Stripe/payment integration no longer used)
   notes: {
     type: DataTypes.TEXT,
     allowNull: true,
