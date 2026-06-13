@@ -3,7 +3,7 @@ const { validationResult } = require("express-validator");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DEFAULT_FROM_EMAIL = "Liastute Orders <onboarding@resend.dev>";
+const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
