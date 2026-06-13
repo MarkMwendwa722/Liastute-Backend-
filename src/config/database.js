@@ -1,5 +1,6 @@
 const { Sequelize } = require("sequelize");
 
+//
 // ─── Database config ──────────────────────────────────────────────────────────
 // Credentials for the Render-hosted PostgreSQL instance.
 // Use the External Host when running locally; the Internal Host when deployed on Render.
