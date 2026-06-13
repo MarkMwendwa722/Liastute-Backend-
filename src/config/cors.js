@@ -3,7 +3,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://liastute-website.vercel.app/",
-  "https://liastute-backend.vercel.app",
+  "http://liastute-backend.vercel.app",
   // Add your production frontend URL here when deploying, e.g.:
   // 'https://your-frontend.vercel.app',
 ];
