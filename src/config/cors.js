@@ -5,7 +5,7 @@ const allowedOrigins = [
   "http://localhost:5174",
   // Production frontend
   "https://liastute-website.vercel.app",
-  "http://lijustore.co.ke",
+  "https://lijustore.co.ke",
 ];
 
 const corsOptions = {
