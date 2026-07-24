@@ -49,6 +49,12 @@ const Order = sequelize.define('Order', {
 }, {
   tableName: 'orders',
   timestamps: true,
+  paranoid: true, // Soft-delete: prevents permanent deletion of order records
+  hooks: {
+    beforeDestroy: async () => {
+      throw new Error('Orders cannot be deleted. Use status updates (e.g., "cancelled" or "Returned") instead.');
+    },
+  },
 });
 
 module.exports = Order;
