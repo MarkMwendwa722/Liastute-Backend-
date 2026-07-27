@@ -1,4 +1,5 @@
-const { Order, OrderItem, Cart, CartItem, Product, User, sequelize } = require('../models');
+const mongoose = require('mongoose');
+const { Order, OrderItem, Cart, CartItem, Product, User } = require('../models');
 const { sendOrderNotification } = require('./emailController');
 
 const generateOrderNumber = () => {
@@ -8,34 +9,40 @@ const generateOrderNumber = () => {
 };
 
 const createOrder = async (req, res, next) => {
-  const t = await sequelize.transaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { shippingAddress, notes, sourceUrl, orderUrl, from } = req.body;
 
     if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.country) {
-      await t.rollback();
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ success: false, message: 'Complete shipping address is required.' });
     }
 
-    const cart = await Cart.findOne({
-      where: { userId: req.session.userId },
-      include: [{ model: CartItem, as: 'items', include: [{ model: Product, as: 'product' }] }],
-      transaction: t,
-    });
+    const cart = await Cart.findOne({ userId: req.session.userId })
+      .session(session)
+      .populate({
+        path: 'items',
+        populate: { path: 'product' },
+      });
 
     if (!cart || !cart.items || cart.items.length === 0) {
-      await t.rollback();
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ success: false, message: 'Cart is empty.' });
     }
 
     // Validate stock and compute totals
     for (const item of cart.items) {
       if (!item.product || !item.product.isActive) {
-        await t.rollback();
-        return res.status(400).json({ success: false, message: `Product "${item.productName || item.productId}" is no longer available.` });
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ success: false, message: `Product "${item.productId}" is no longer available.` });
       }
       if (item.product.stock < item.quantity) {
-        await t.rollback();
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({ success: false, message: `Insufficient stock for "${item.product.name}".` });
       }
     }
@@ -45,48 +52,51 @@ const createOrder = async (req, res, next) => {
     const shippingCost = subtotal >= 100 ? 0 : 9.99;
     const total = subtotal + tax + shippingCost;
 
-    const order = await Order.create({
+    const [order] = await Order.create([{
       orderNumber: generateOrderNumber(),
       userId: req.session.userId,
       shippingAddress,
-      subtotal: subtotal.toFixed(2),
-      tax: tax.toFixed(2),
-      shippingCost: shippingCost.toFixed(2),
-      total: total.toFixed(2),
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      shippingCost: parseFloat(shippingCost.toFixed(2)),
+      total: parseFloat(total.toFixed(2)),
       notes: notes || null,
-    }, { transaction: t });
+    }], { session });
 
     // Create order items & decrement stock
     const orderItems = await Promise.all(cart.items.map((item) =>
-      OrderItem.create({
-        orderId: order.id,
-        productId: item.product.id,
+      OrderItem.create([{
+        orderId: order._id,
+        productId: item.product._id,
         productName: item.product.name,
         productSku: item.product.sku,
         quantity: item.quantity,
         unitPrice: item.product.price,
-        totalPrice: (parseFloat(item.product.price) * item.quantity).toFixed(2),
-      }, { transaction: t })
+        totalPrice: parseFloat((parseFloat(item.product.price) * item.quantity).toFixed(2)),
+      }], { session })
     ));
 
     await Promise.all(cart.items.map((item) =>
-      item.product.update({ stock: item.product.stock - item.quantity }, { transaction: t })
+      Product.updateOne(
+        { _id: item.product._id },
+        { $inc: { stock: -item.quantity } },
+        { session }
+      )
     ));
 
     // Clear cart
-    await CartItem.destroy({ where: { cartId: cart.id }, transaction: t });
+    await CartItem.deleteMany({ cartId: cart._id }, { session });
 
-    await t.commit();
+    await session.commitTransaction();
+    session.endSession();
 
     let emailNotificationSent = false;
     try {
-      const user = await User.findByPk(req.session.userId, {
-        attributes: ['firstName', 'lastName', 'email', 'phone'],
-      });
+      const user = await User.findById(req.session.userId).select('firstName lastName email phone');
 
       await sendOrderNotification({
         order,
-        items: orderItems,
+        items: orderItems.map(([o]) => o),
         user,
         sourceUrl: sourceUrl || orderUrl || from,
       });
@@ -98,10 +108,11 @@ const createOrder = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       message: 'Order placed successfully.',
-      data: { ...order.toJSON(), items: orderItems, emailNotificationSent },
+      data: { ...order.toObject(), items: orderItems.map(([o]) => o), emailNotificationSent },
     });
   } catch (err) {
-    await t.rollback();
+    await session.abortTransaction();
+    session.endSession();
     return next(err);
   }
 };
@@ -109,20 +120,23 @@ const createOrder = async (req, res, next) => {
 const getOrders = async (req, res, next) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    const { count, rows } = await Order.findAndCountAll({
-      where: { userId: req.session.userId },
-      include: [{ model: OrderItem, as: 'items' }],
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset,
-    });
+    const [total, rows] = await Promise.all([
+      Order.countDocuments({ userId: req.session.userId }),
+      Order.find({ userId: req.session.userId })
+        .populate('items')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+    ]);
 
     return res.json({
       success: true,
       data: rows,
-      pagination: { total: count, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(count / limit) },
+      pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) },
     });
   } catch (err) {
     return next(err);
@@ -131,10 +145,7 @@ const getOrders = async (req, res, next) => {
 
 const getOrderById = async (req, res, next) => {
   try {
-    const order = await Order.findOne({
-      where: { id: req.params.id, userId: req.session.userId },
-      include: [{ model: OrderItem, as: 'items' }],
-    });
+    const order = await Order.findOne({ _id: req.params.id, userId: req.session.userId }).populate('items');
     if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
     return res.json({ success: true, data: order });
   } catch (err) {
@@ -144,12 +155,13 @@ const getOrderById = async (req, res, next) => {
 
 const cancelOrder = async (req, res, next) => {
   try {
-    const order = await Order.findOne({ where: { id: req.params.id, userId: req.session.userId } });
+    const order = await Order.findOne({ _id: req.params.id, userId: req.session.userId });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
     if (!['pending', 'confirmed'].includes(order.status)) {
       return res.status(400).json({ success: false, message: 'Order cannot be cancelled at this stage.' });
     }
-    await order.update({ status: 'cancelled' });
+    order.status = 'cancelled';
+    await order.save();
     return res.json({ success: true, message: 'Order cancelled.' });
   } catch (err) {
     return next(err);

@@ -1,49 +1,55 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const User = sequelize.define('User', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
+const userSchema = new mongoose.Schema({
   firstName: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
+    type: String,
+    required: [true, 'First name is required.'],
+    maxlength: 100,
+    trim: true,
   },
   lastName: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
+    type: String,
+    required: [true, 'Last name is required.'],
+    maxlength: 100,
+    trim: true,
   },
   email: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
+    type: String,
+    required: [true, 'Email is required.'],
     unique: true,
-    validate: { isEmail: true },
+    lowercase: true,
+    trim: true,
+    match: [/.+@.+\..+/, 'Please provide a valid email.'],
+    maxlength: 255,
   },
   password: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
+    type: String,
+    required: [true, 'Password is required.'],
+    maxlength: 255,
   },
   phone: {
-    type: DataTypes.STRING(20),
-    allowNull: true,
+    type: String,
+    maxlength: 20,
+    trim: true,
+    default: null,
   },
   address: {
-    type: DataTypes.TEXT,
-    allowNull: true,
+    type: String,
+    default: null,
   },
   role: {
-    type: DataTypes.ENUM('customer', 'admin'),
-    defaultValue: 'customer',
+    type: String,
+    enum: ['customer', 'admin'],
+    default: 'customer',
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
+    type: Boolean,
+    default: true,
   },
 }, {
-  tableName: 'users',
   timestamps: true,
 });
+
+const User = mongoose.model('User', userSchema);
 
 module.exports = User;

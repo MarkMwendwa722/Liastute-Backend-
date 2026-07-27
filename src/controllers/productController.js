@@ -1,5 +1,4 @@
 const { validationResult } = require('express-validator');
-const { Op } = require('sequelize');
 const { Product, Category } = require('../models');
 
 const getAllProducts = async (req, res, next) => {
@@ -16,33 +15,37 @@ const getAllProducts = async (req, res, next) => {
       featured,
     } = req.query;
 
-    const where = { isActive: true };
-    if (category) where.categoryId = category;
-    if (search) where.name = { [Op.iLike]: `%${search}%` };
+    const filter = { isActive: true };
+    if (category) filter.categoryId = category;
+    if (search) filter.name = { $regex: search, $options: 'i' };
     if (minPrice || maxPrice) {
-      where.price = {};
-      if (minPrice) where.price[Op.gte] = parseFloat(minPrice);
-      if (maxPrice) where.price[Op.lte] = parseFloat(maxPrice);
+      filter.price = {};
+      if (minPrice) filter.price.$gte = parseFloat(minPrice);
+      if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
     }
-    if (featured === 'true') where.isFeatured = true;
+    if (featured === 'true') filter.isFeatured = true;
 
     const allowedSort = ['price', 'createdAt', 'name'];
     const sortField = allowedSort.includes(sortBy) ? sortBy : 'createdAt';
-    const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const sortOrder = order.toUpperCase() === 'ASC' ? 1 : -1;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const { count, rows } = await Product.findAndCountAll({
-      where,
-      include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
-      order: [[sortField, sortOrder]],
-      limit: parseInt(limit),
-      offset,
-    });
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, products] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter)
+        .populate('category', 'name slug')
+        .sort({ [sortField]: sortOrder })
+        .skip(skip)
+        .limit(limitNum),
+    ]);
 
     return res.json({
       success: true,
-      data: rows,
-      pagination: { total: count, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(count / limit) },
+      data: products,
+      pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) },
     });
   } catch (err) {
     return next(err);
@@ -51,10 +54,7 @@ const getAllProducts = async (req, res, next) => {
 
 const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findOne({
-      where: { id: req.params.id, isActive: true },
-      include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
-    });
+    const product = await Product.findOne({ _id: req.params.id, isActive: true }).populate('category', 'name slug');
     if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
     return res.json({ success: true, data: product });
   } catch (err) {
@@ -64,10 +64,7 @@ const getProductById = async (req, res, next) => {
 
 const getProductBySlug = async (req, res, next) => {
   try {
-    const product = await Product.findOne({
-      where: { slug: req.params.slug, isActive: true },
-      include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'slug'] }],
-    });
+    const product = await Product.findOne({ slug: req.params.slug, isActive: true }).populate('category', 'name slug');
     if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
     return res.json({ success: true, data: product });
   } catch (err) {
@@ -92,7 +89,7 @@ const createProduct = async (req, res, next) => {
 
 const updateProduct = async (req, res, next) => {
   try {
-    const product = await Product.findByPk(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
 
     const updates = { ...req.body };
@@ -100,7 +97,8 @@ const updateProduct = async (req, res, next) => {
       updates.images = req.files.map((f) => `/uploads/${f.filename}`);
     }
 
-    await product.update(updates);
+    Object.assign(product, updates);
+    await product.save();
     return res.json({ success: true, message: 'Product updated.', data: product });
   } catch (err) {
     return next(err);
@@ -109,9 +107,10 @@ const updateProduct = async (req, res, next) => {
 
 const deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findByPk(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
-    await product.update({ isActive: false });
+    product.isActive = false;
+    await product.save();
     return res.json({ success: true, message: 'Product deleted.' });
   } catch (err) {
     return next(err);

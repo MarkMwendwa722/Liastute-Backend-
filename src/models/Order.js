@@ -1,60 +1,79 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const Order = sequelize.define('Order', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
+const orderSchema = new mongoose.Schema({
   orderNumber: {
-    type: DataTypes.STRING(50),
-    allowNull: false,
+    type: String,
+    required: [true, 'Order number is required.'],
     unique: true,
+    maxlength: 50,
+    trim: true,
   },
   userId: {
-    type: DataTypes.UUID,
-    allowNull: false,
-    references: { model: 'users', key: 'id' },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
   },
   status: {
-    type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'),
-    defaultValue: 'pending',
+    type: String,
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
+    default: 'pending',
   },
   subtotal: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
+    type: Number,
+    required: [true, 'Subtotal is required.'],
   },
   tax: {
-    type: DataTypes.DECIMAL(10, 2),
-    defaultValue: 0,
+    type: Number,
+    default: 0,
   },
   shippingCost: {
-    type: DataTypes.DECIMAL(10, 2),
-    defaultValue: 0,
+    type: Number,
+    default: 0,
   },
   total: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
+    type: Number,
+    required: [true, 'Total is required.'],
   },
   shippingAddress: {
-    type: DataTypes.JSONB,
-    allowNull: false,
+    type: mongoose.Schema.Types.Mixed,
+    required: [true, 'Shipping address is required.'],
   },
-  // Payment fields removed (Stripe/payment integration no longer used)
   notes: {
-    type: DataTypes.TEXT,
-    allowNull: true,
+    type: String,
+    default: null,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
   },
 }, {
-  tableName: 'orders',
   timestamps: true,
-  paranoid: true, // Soft-delete: prevents permanent deletion of order records
-  hooks: {
-    beforeDestroy: async () => {
-      throw new Error('Orders cannot be deleted. Use status updates (e.g., "cancelled" or "Returned") instead.');
-    },
-  },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
+
+orderSchema.virtual('items', {
+  ref: 'OrderItem',
+  localField: '_id',
+  foreignField: 'orderId',
+});
+
+orderSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+// Prevent permanent deletion — use status update instead
+orderSchema.pre('deleteOne', { document: true, query: false }, () => {
+  throw new Error('Orders cannot be deleted. Use status updates (e.g., "cancelled" or "refunded") instead.');
+});
+
+orderSchema.pre('deleteMany', () => {
+  throw new Error('Orders cannot be deleted. Use status updates (e.g., "cancelled" or "refunded") instead.');
+});
+
+const Order = mongoose.model('Order', orderSchema);
 
 module.exports = Order;

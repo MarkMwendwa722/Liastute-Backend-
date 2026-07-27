@@ -1,42 +1,50 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const Category = sequelize.define('Category', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
+const categorySchema = new mongoose.Schema({
   name: {
-    type: DataTypes.STRING(150),
-    allowNull: false,
+    type: String,
+    required: [true, 'Category name is required.'],
     unique: true,
+    maxlength: 150,
+    trim: true,
   },
   slug: {
-    type: DataTypes.STRING(200),
-    allowNull: false,
+    type: String,
+    required: [true, 'Slug is required.'],
     unique: true,
+    maxlength: 200,
+    trim: true,
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true,
+    type: String,
+    default: null,
   },
   imageUrl: {
-    type: DataTypes.STRING(500),
-    allowNull: true,
+    type: String,
+    maxlength: 500,
+    default: null,
   },
   parentId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    references: { model: 'categories', key: 'id' },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    default: null,
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
+    type: Boolean,
+    default: true,
   },
 }, {
-  tableName: 'categories',
   timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
+
+categorySchema.virtual('subcategories', {
+  ref: 'Category',
+  localField: '_id',
+  foreignField: 'parentId',
+});
+
+const Category = mongoose.model('Category', categorySchema);
 
 module.exports = Category;

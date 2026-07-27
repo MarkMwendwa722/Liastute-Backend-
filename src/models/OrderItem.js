@@ -1,46 +1,44 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const OrderItem = sequelize.define('OrderItem', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
+const orderItemSchema = new mongoose.Schema({
   orderId: {
-    type: DataTypes.UUID,
-    allowNull: false,
-    references: { model: 'orders', key: 'id' },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    required: true,
   },
   productId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    references: { model: 'products', key: 'id' },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    default: null,
   },
   productName: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
+    type: String,
+    required: [true, 'Product name is required.'],
+    maxlength: 255,
+    trim: true,
   },
   productSku: {
-    type: DataTypes.STRING(100),
-    allowNull: true,
+    type: String,
+    maxlength: 100,
+    default: null,
   },
   quantity: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    validate: { min: 1 },
+    type: Number,
+    required: true,
+    min: [1, 'Quantity must be at least 1.'],
   },
   unitPrice: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
+    type: Number,
+    required: [true, 'Unit price is required.'],
   },
   totalPrice: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
+    type: Number,
+    required: [true, 'Total price is required.'],
   },
 }, {
-  tableName: 'order_items',
   timestamps: true,
 });
+
+const OrderItem = mongoose.model('OrderItem', orderItemSchema);
 
 module.exports = OrderItem;

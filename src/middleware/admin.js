@@ -5,7 +5,7 @@ const isAdmin = async (req, res, next) => {
     if (!req.session || !req.session.userId) {
       return res.status(401).json({ success: false, message: 'Authentication required.' });
     }
-    const user = await User.findByPk(req.session.userId, { attributes: ['id', 'role', 'isActive'] });
+    const user = await User.findById(req.session.userId).select('role isActive');
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Account not found or inactive.' });
     }

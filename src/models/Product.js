@@ -1,74 +1,98 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const Product = sequelize.define('Product', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
+const productSchema = new mongoose.Schema({
   name: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
+    type: String,
+    required: [true, 'Product name is required.'],
+    maxlength: 255,
+    trim: true,
   },
   slug: {
-    type: DataTypes.STRING(300),
-    allowNull: false,
+    type: String,
+    required: [true, 'Slug is required.'],
     unique: true,
+    maxlength: 300,
+    trim: true,
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true,
+    type: String,
+    default: null,
   },
   price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    validate: { min: 0 },
+    type: Number,
+    required: [true, 'Price is required.'],
+    min: [0, 'Price must be non-negative.'],
   },
   comparePrice: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: true,
-    validate: { min: 0 },
+    type: Number,
+    min: 0,
+    default: null,
   },
   stock: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0,
-    validate: { min: 0 },
+    type: Number,
+    required: true,
+    default: 0,
+    min: [0, 'Stock must be non-negative.'],
   },
   sku: {
-    type: DataTypes.STRING(100),
-    allowNull: true,
+    type: String,
+    maxlength: 100,
     unique: true,
+    sparse: true,
+    default: null,
   },
   imageUrl: {
-    type: DataTypes.STRING(500),
-    allowNull: true,
+    type: String,
+    maxlength: 500,
+    default: null,
   },
   images: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    defaultValue: [],
+    type: [String],
+    default: [],
   },
   categoryId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    references: { model: 'categories', key: 'id' },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    default: null,
+  },
+  brand: {
+    type: String,
+    maxlength: 255,
+    default: null,
+  },
+  googleProductCategory: {
+    type: String,
+    default: null,
+  },
+  externalId: {
+    type: String,
+    default: null,
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
+    type: Boolean,
+    default: true,
   },
   isFeatured: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
+    type: Boolean,
+    default: false,
   },
   weight: {
-    type: DataTypes.DECIMAL(8, 2),
-    allowNull: true,
+    type: Number,
+    default: null,
   },
 }, {
-  tableName: 'products',
   timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
+
+productSchema.virtual('category', {
+  ref: 'Category',
+  localField: 'categoryId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product;

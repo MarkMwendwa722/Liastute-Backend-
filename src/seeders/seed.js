@@ -1,5 +1,7 @@
-// dotenv removed
-const { sequelize, Category, Product } = require('../models');
+require('dotenv').config();
+const mongoose = require('mongoose');
+const { Category, Product } = require('../models');
+const connectDB = require('../config/database');
 
 const categories = [
   { name: 'Electronics',  slug: 'electronics',  description: 'Gadgets and electronic devices' },
@@ -130,23 +132,22 @@ const products = [
 
 const seed = async () => {
   try {
-    await sequelize.authenticate();
+    await connectDB();
     console.log('Connected to database.');
-
-    // Sync tables
-    await sequelize.sync({ alter: true });
-    console.log('Tables synced.');
 
     // Seed categories
     console.log('\nSeeding categories...');
     const createdCategories = {};
     for (const cat of categories) {
-      const [instance, created] = await Category.findOrCreate({
-        where: { slug: cat.slug },
-        defaults: cat,
-      });
-      createdCategories[cat.slug] = instance.id;
-      console.log(`  ${created ? 'Created' : 'Exists '} → ${cat.name}`);
+      const existing = await Category.findOne({ slug: cat.slug });
+      if (existing) {
+        createdCategories[cat.slug] = existing._id;
+        console.log(`  Exists  → ${cat.name}`);
+      } else {
+        const instance = await Category.create(cat);
+        createdCategories[cat.slug] = instance._id;
+        console.log(`  Created → ${cat.name}`);
+      }
     }
 
     // Seed products
@@ -155,11 +156,13 @@ const seed = async () => {
       const { categorySlug, ...productData } = prod;
       const categoryId = createdCategories[categorySlug] || null;
 
-      const [, created] = await Product.findOrCreate({
-        where: { slug: productData.slug },
-        defaults: { ...productData, categoryId },
-      });
-      console.log(`  ${created ? 'Created' : 'Exists '} → ${productData.name}`);
+      const existing = await Product.findOne({ slug: productData.slug });
+      if (existing) {
+        console.log(`  Exists  → ${productData.name}`);
+      } else {
+        await Product.create({ ...productData, categoryId });
+        console.log(`  Created → ${productData.name}`);
+      }
     }
 
     console.log('\nSeeding complete!');

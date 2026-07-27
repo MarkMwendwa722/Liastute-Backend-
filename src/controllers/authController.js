@@ -11,7 +11,7 @@ const register = async (req, res, next) => {
 
     const { firstName, lastName, email, password, phone } = req.body;
 
-    const existing = await User.findOne({ where: { email: email.toLowerCase() } });
+    const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) {
       return res.status(409).json({ success: false, message: 'Email already registered.' });
     }
@@ -46,7 +46,7 @@ const login = async (req, res, next) => {
     }
 
     const { email, password } = req.body;
-    const user = await User.findOne({ where: { email: email.toLowerCase() } });
+    const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
@@ -80,9 +80,7 @@ const logout = (req, res, next) => {
 
 const getProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.session.userId, {
-      attributes: { exclude: ['password'] },
-    });
+    const user = await User.findById(req.session.userId).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
     return res.json({ success: true, user });
   } catch (err) {
@@ -98,11 +96,12 @@ const updateProfile = async (req, res, next) => {
     }
 
     const { firstName, lastName, phone, address } = req.body;
-    const user = await User.findByPk(req.session.userId);
+    const user = await User.findById(req.session.userId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-    await user.update({ firstName, lastName, phone, address });
-    const { password: _pwd, ...userData } = user.toJSON();
+    Object.assign(user, { firstName, lastName, phone, address });
+    await user.save();
+    const { password: _pwd, ...userData } = user.toObject();
     return res.json({ success: true, message: 'Profile updated.', user: userData });
   } catch (err) {
     return next(err);
@@ -112,14 +111,15 @@ const updateProfile = async (req, res, next) => {
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const user = await User.findByPk(req.session.userId);
+    const user = await User.findById(req.session.userId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
 
     const hashed = await bcrypt.hash(newPassword, 12);
-    await user.update({ password: hashed });
+    user.password = hashed;
+    await user.save();
     return res.json({ success: true, message: 'Password changed successfully.' });
   } catch (err) {
     return next(err);
