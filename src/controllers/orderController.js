@@ -12,12 +12,12 @@ const createOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { shippingAddress, notes, sourceUrl, orderUrl, from } = req.body;
+    const { name, townCity, phoneNumber, emailAddress, specialNotes, sourceUrl, orderUrl, from } = req.body;
 
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.country) {
+    if (!name || !townCity || !phoneNumber || !emailAddress) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ success: false, message: 'Complete shipping address is required.' });
+      return res.status(400).json({ success: false, message: 'Name, town/city, phone number, and email address are required.' });
     }
 
     const cart = await Cart.findOne({ userId: req.session.userId })
@@ -55,12 +55,18 @@ const createOrder = async (req, res, next) => {
     const [order] = await Order.create([{
       orderNumber: generateOrderNumber(),
       userId: req.session.userId,
-      shippingAddress,
+      shippingAddress: {
+        name,
+        townCity,
+        phoneNumber,
+        emailAddress,
+        specialNotes: specialNotes || null,
+      },
       subtotal: parseFloat(subtotal.toFixed(2)),
       tax: parseFloat(tax.toFixed(2)),
       shippingCost: parseFloat(shippingCost.toFixed(2)),
       total: parseFloat(total.toFixed(2)),
-      notes: notes || null,
+      notes: specialNotes || null,
     }], { session });
 
     // Create order items & decrement stock
