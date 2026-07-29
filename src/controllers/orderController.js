@@ -12,7 +12,7 @@ const createOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { name, townCity, phoneNumber, emailAddress, specialNotes, sourceUrl, orderUrl, from } = req.body;
+    const { name, townCity, phoneNumber, emailAddress, specialNotes, items: guestItems, sourceUrl, orderUrl, from } = req.body;
 
     if (!name || !townCity || !phoneNumber || !emailAddress) {
       await session.abortTransaction();
@@ -20,25 +20,64 @@ const createOrder = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Name, town/city, phone number, and email address are required.' });
     }
 
-    const cart = await Cart.findOne({ userId: req.session.userId })
-      .session(session)
-      .populate({
-        path: 'items',
-        populate: { path: 'product' },
-      });
+    // Determine cart items — from logged-in user's cart OR from guest items in body
+    let cartItems;
+    const userId = req.session?.userId || null;
 
-    if (!cart || !cart.items || cart.items.length === 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ success: false, message: 'Cart is empty.' });
+    if (userId) {
+      const cart = await Cart.findOne({ userId })
+        .session(session)
+        .populate({
+          path: 'items',
+          populate: { path: 'product' },
+        });
+
+      if (!cart || !cart.items || cart.items.length === 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ success: false, message: 'Cart is empty.' });
+      }
+      cartItems = cart.items;
+
+      // Clear cart after use
+      await CartItem.deleteMany({ cartId: cart._id }, { session });
+    } else {
+      // Guest checkout — items must be provided in the body
+      if (!guestItems || !Array.isArray(guestItems) || guestItems.length === 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ success: false, message: 'Items array is required for guest checkout.' });
+      }
+
+      // Fetch products for guest items
+      const productIds = guestItems.map((i) => i.productId);
+      const products = await Product.find({ _id: { $in: productIds } }).session(session);
+      const productMap = {};
+      for (const p of products) productMap[p._id.toString()] = p;
+
+      cartItems = [];
+      for (const gi of guestItems) {
+        const product = productMap[gi.productId];
+        if (!product || !product.isActive) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ success: false, message: `Product "${gi.productId}" is no longer available.` });
+        }
+        if (product.stock < gi.quantity) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ success: false, message: `Insufficient stock for "${product.name}".` });
+        }
+        cartItems.push({ product, quantity: gi.quantity });
+      }
     }
 
     // Validate stock and compute totals
-    for (const item of cart.items) {
+    for (const item of cartItems) {
       if (!item.product || !item.product.isActive) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ success: false, message: `Product "${item.productId}" is no longer available.` });
+        return res.status(400).json({ success: false, message: `Product is no longer available.` });
       }
       if (item.product.stock < item.quantity) {
         await session.abortTransaction();
@@ -47,14 +86,14 @@ const createOrder = async (req, res, next) => {
       }
     }
 
-    const subtotal = cart.items.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0);
+    const subtotal = cartItems.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0);
     const tax = subtotal * 0.1; // 10% tax — adjust as needed
     const shippingCost = subtotal >= 100 ? 0 : 9.99;
     const total = subtotal + tax + shippingCost;
 
     const [order] = await Order.create([{
       orderNumber: generateOrderNumber(),
-      userId: req.session.userId,
+      userId,
       shippingAddress: {
         name,
         townCity,
@@ -70,7 +109,7 @@ const createOrder = async (req, res, next) => {
     }], { session });
 
     // Create order items & decrement stock
-    const orderItems = await Promise.all(cart.items.map((item) =>
+    const orderItems = await Promise.all(cartItems.map((item) =>
       OrderItem.create([{
         orderId: order._id,
         productId: item.product._id,
@@ -82,7 +121,7 @@ const createOrder = async (req, res, next) => {
       }], { session })
     ));
 
-    await Promise.all(cart.items.map((item) =>
+    await Promise.all(cartItems.map((item) =>
       Product.updateOne(
         { _id: item.product._id },
         { $inc: { stock: -item.quantity } },
@@ -90,23 +129,22 @@ const createOrder = async (req, res, next) => {
       )
     ));
 
-    // Clear cart
-    await CartItem.deleteMany({ cartId: cart._id }, { session });
-
     await session.commitTransaction();
     session.endSession();
 
     let emailNotificationSent = false;
     try {
-      const user = await User.findById(req.session.userId).select('firstName lastName email phone');
+      const user = userId ? await User.findById(userId).select('firstName lastName email phone') : null;
 
-      await sendOrderNotification({
-        order,
-        items: orderItems.map(([o]) => o),
-        user,
-        sourceUrl: sourceUrl || orderUrl || from,
-      });
-      emailNotificationSent = true;
+      if (user) {
+        await sendOrderNotification({
+          order,
+          items: orderItems.map(([o]) => o),
+          user,
+          sourceUrl: sourceUrl || orderUrl || from,
+        });
+        emailNotificationSent = true;
+      }
     } catch (emailErr) {
       console.error('Order notification email failed:', emailErr.message);
     }
