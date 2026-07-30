@@ -8,6 +8,7 @@ const allowedOrigins = [
   "https://liastute-website.vercel.app",
   "https://lijustore.co.ke",
   "https://admin.lijustore.co.ke",
+  "https://www.lijustore.co.ke",
 ];
 
 const corsOptions = {
