@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 const { User } = require('../models');
+const { signToken } = require('../utils/jwt');
 
 const register = async (req, res, next) => {
   try {
@@ -28,9 +29,12 @@ const register = async (req, res, next) => {
     req.session.userId = user.id;
     req.session.userRole = user.role;
 
+    const token = signToken(user);
+
     return res.status(201).json({
       success: true,
       message: 'Registration successful.',
+      token,
       user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role },
     });
   } catch (err) {
@@ -60,9 +64,12 @@ const login = async (req, res, next) => {
     req.session.userId = user.id;
     req.session.userRole = user.role;
 
+    const token = signToken(user);
+
     return res.json({
       success: true,
       message: 'Login successful.',
+      token,
       user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role },
     });
   } catch (err) {
