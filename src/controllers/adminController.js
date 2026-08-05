@@ -87,7 +87,11 @@ const getAllOrders = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
     const filter = {};
-    if (status) filter.status = status;
+    // Treat "all"/empty status as "no filter" so tabs like All/Pending etc.
+    // don't accidentally query for a literal "all" status and return 0 rows.
+    if (status && status.toLowerCase() !== 'all') {
+      filter.status = status;
+    }
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -96,7 +100,6 @@ const getAllOrders = async (req, res, next) => {
     const [total, rows] = await Promise.all([
       Order.countDocuments(filter),
       Order.find(filter)
-        .populate('user', 'firstName lastName email')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),

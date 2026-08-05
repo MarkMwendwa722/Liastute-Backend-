@@ -91,22 +91,16 @@ const createOrder = async (req, res, next) => {
 
     const subtotal = cartItems.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0);
     const tax = subtotal * 0.1; // 10% tax — adjust as needed
-    const shippingCost = subtotal >= 100 ? 0 : 9.99;
-    const total = subtotal + tax + shippingCost;
+    const total = subtotal + tax;
 
     const [order] = await Order.create([{
-      orderNumber: generateOrderNumber(),
-      userId,
-      shippingAddress: {
-        name,
-        townCity,
-        phoneNumber,
-        emailAddress,
-        specialNotes: specialNotes || null,
-      },
+      _id: generateOrderNumber(),
+      name,
+      townCity,
+      phoneNumber,
+      emailAddress,
       subtotal: parseFloat(subtotal.toFixed(2)),
       tax: parseFloat(tax.toFixed(2)),
-      shippingCost: parseFloat(shippingCost.toFixed(2)),
       total: parseFloat(total.toFixed(2)),
       notes: specialNotes || null,
     }], { session });
@@ -179,8 +173,8 @@ const getOrders = async (req, res, next) => {
     const skip = (pageNum - 1) * limitNum;
 
     const [total, rows] = await Promise.all([
-      Order.countDocuments({ userId: req.session.userId }),
-      Order.find({ userId: req.session.userId })
+      Order.countDocuments({}),
+      Order.find({})
         .populate('items')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -199,7 +193,7 @@ const getOrders = async (req, res, next) => {
 
 const getOrderById = async (req, res, next) => {
   try {
-    const order = await Order.findOne({ _id: req.params.id, userId: req.session.userId }).populate('items');
+    const order = await Order.findOne({ _id: req.params.id }).populate('items');
     if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
     return res.json({ success: true, data: order });
   } catch (err) {
@@ -209,7 +203,7 @@ const getOrderById = async (req, res, next) => {
 
 const cancelOrder = async (req, res, next) => {
   try {
-    const order = await Order.findOne({ _id: req.params.id, userId: req.session.userId });
+    const order = await Order.findOne({ _id: req.params.id });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
     if (!['pending', 'confirmed'].includes(order.status)) {
       return res.status(400).json({ success: false, message: 'Order cannot be cancelled at this stage.' });

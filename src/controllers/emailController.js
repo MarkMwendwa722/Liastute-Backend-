@@ -31,18 +31,8 @@ const escapeHtml = (value) =>
 
 const formatMoney = (value) => Number(value || 0).toFixed(2);
 
-const formatAddress = (address = {}) => {
-  if (typeof address === "string") return address;
-  return [
-    address.street,
-    address.city,
-    address.state,
-    address.postalCode,
-    address.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
-};
+const formatShippingAddress = (order = {}) =>
+  [order.name, order.townCity].filter(Boolean).join(", ");
 
 // ─── Core send helper ─────────────────────────────────────────────────────────
 
@@ -175,10 +165,12 @@ const sendOrderNotification = async ({
     .join("");
 
   const customerName =
-    [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Customer";
-  const customerEmail = user?.email || "Not provided";
-  const customerPhone = user?.phone || "Not provided";
-  const shippingAddress = formatAddress(orderJson.shippingAddress);
+    orderJson.name ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    "Customer";
+  const customerEmail = orderJson.emailAddress || user?.email || "Not provided";
+  const customerPhone = orderJson.phoneNumber || user?.phone || "Not provided";
+  const shippingAddress = formatShippingAddress(orderJson);
   const subject = `New order received: Order #${orderJson.orderNumber}`;
 
   const sourceUrlHtml = sourceUrl
@@ -209,7 +201,6 @@ const sendOrderNotification = async ({
       "",
       `Subtotal: $${formatMoney(orderJson.subtotal)}`,
       `Tax: $${formatMoney(orderJson.tax)}`,
-      `Shipping: $${formatMoney(orderJson.shippingCost)}`,
       `Total: $${formatMoney(orderJson.total)}`,
       sourceUrlText,
       `Notes: ${orderJson.notes || "None"}`,
@@ -239,7 +230,6 @@ const sendOrderNotification = async ({
         <p>
           <strong>Subtotal:</strong> $${formatMoney(orderJson.subtotal)}<br>
           <strong>Tax:</strong> $${formatMoney(orderJson.tax)}<br>
-          <strong>Shipping:</strong> $${formatMoney(orderJson.shippingCost)}<br>
           <strong>Total:</strong> $${formatMoney(orderJson.total)}
         </p>
         ${sourceUrlHtml}
