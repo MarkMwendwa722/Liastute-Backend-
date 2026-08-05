@@ -179,7 +179,7 @@ const sendOrderNotification = async ({
   const customerEmail = user?.email || "Not provided";
   const customerPhone = user?.phone || "Not provided";
   const shippingAddress = formatAddress(orderJson.shippingAddress);
-  const subject = `New order received: ${orderJson.orderNumber}`;
+  const subject = `New order received: Order #${orderJson.orderNumber}`;
 
   const sourceUrlHtml = sourceUrl
     ? `<p><strong>Source URL:</strong><br><a href="${escapeHtml(sourceUrl)}">${escapeHtml(sourceUrl)}</a></p>`
@@ -197,7 +197,7 @@ const sendOrderNotification = async ({
     to: [recipient],
     subject,
     text: [
-      `A new order has been placed: ${orderJson.orderNumber}`,
+      `A new order has been placed: Order #${orderJson.orderNumber}`,
       "",
       `Customer: ${customerName}`,
       `Email: ${customerEmail}`,
@@ -217,7 +217,7 @@ const sendOrderNotification = async ({
     html: `
       <div style="font-family:Arial,sans-serif;color:#222;line-height:1.5;">
         <h2 style="margin:0 0 12px;">New order received</h2>
-        <p><strong>Order:</strong> ${escapeHtml(orderJson.orderNumber)}</p>
+        <p><strong>Order #:</strong> ${escapeHtml(orderJson.orderNumber)}</p>
         <p>
           <strong>Customer:</strong> ${escapeHtml(customerName)}<br>
           <strong>Email:</strong> ${escapeHtml(customerEmail)}<br>

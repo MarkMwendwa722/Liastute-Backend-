@@ -3,9 +3,12 @@ const { Order, OrderItem, Cart, CartItem, Product, User } = require('../models')
 const { sendOrderNotification } = require('./emailController');
 
 const generateOrderNumber = () => {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `ORD-${ts}-${rand}`;
+  // Format: LIA-<6 digits>, e.g. "LIA-346757" — only the numbers change.
+  // Time-based digits keep it unique; the 2-digit random guards against
+  // collisions for orders created within the same millisecond.
+  const timePart = Date.now().toString().slice(-4);
+  const randPart = String(Math.floor(Math.random() * 100)).padStart(2, "0");
+  return `LIA-${timePart}${randPart}`;
 };
 
 const createOrder = async (req, res, next) => {
@@ -149,10 +152,17 @@ const createOrder = async (req, res, next) => {
       console.error('Order notification email failed:', emailErr.message);
     }
 
+    const orderData = order.toObject();
+
     return res.status(201).json({
       success: true,
       message: 'Order placed successfully.',
-      data: { ...order.toObject(), items: orderItems.map(([o]) => o), emailNotificationSent },
+      data: {
+        ...orderData,
+        trackingNumber: orderData.orderNumber,
+        items: orderItems.map(([o]) => o),
+        emailNotificationSent,
+      },
     });
   } catch (err) {
     await session.abortTransaction();
