@@ -93,6 +93,39 @@ productSchema.virtual('category', {
   justOne: true,
 });
 
+/** Convert a product name into a URL-safe slug. */
+const slugify = (str) =>
+  String(str || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '') // drop non-alphanumeric chars
+    .replace(/[\s_-]+/g, '-') // collapse spaces/underscores/hyphens into one hyphen
+    .replace(/^-+|-+$/g, ''); // trim leading/trailing hyphens
+
+// Auto-generate slug from name when not provided, and guarantee uniqueness.
+productSchema.pre('validate', async function (next) {
+  try {
+    if (!this.slug) {
+      this.slug = slugify(this.name);
+    }
+    if (!this.slug) {
+      return next(new Error('Unable to generate a slug from the product name.'));
+    }
+
+    let base = this.slug;
+    let slug = base;
+    let counter = 1;
+    while (await Product.exists({ slug, _id: { $ne: this._id } })) {
+      slug = `${base}-${counter}`;
+      counter += 1;
+    }
+    this.slug = slug;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
 const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product;

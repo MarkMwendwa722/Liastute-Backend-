@@ -11,7 +11,8 @@ const {
   createProduct,
   updateProduct,
   deleteProduct,
-  getAllProducts,
+  getAdminProducts,
+  toggleProductStatus,
 } = require('../controllers/productController');
 const {
   createCategory,
@@ -33,9 +34,10 @@ router.get('/users', getAllUsers);
 router.patch('/users/:id/toggle-status', toggleUserStatus);
 
 // Products (admin CRUD)
-router.get('/products', getAllProducts);
+router.get('/products', getAdminProducts);
 router.post('/products', upload.array('images', 10), createProductValidator, createProduct);
 router.put('/products/:id', upload.array('images', 10), updateProduct);
+router.patch('/products/:id/toggle-status', toggleProductStatus);
 router.delete('/products/:id', deleteProduct);
 
 // Categories (admin CRUD)

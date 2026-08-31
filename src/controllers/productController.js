@@ -1,5 +1,24 @@
 const { validationResult } = require('express-validator');
+const cloudinary = require('../config/cloudinary');
 const { Product, Category } = require('../models');
+
+const uploadImageToCloudinary = (file) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'liastute/products' },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      },
+    );
+    stream.end(file.buffer);
+  });
+
+const uploadImagesToCloudinary = async (files) => {
+  if (!files || files.length === 0) return [];
+  const urls = await Promise.all(files.map(uploadImageToCloudinary));
+  return urls;
+};
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -79,7 +98,7 @@ const createProduct = async (req, res, next) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const images = req.files ? req.files.map((f) => `/uploads/${f.filename}`) : [];
+    const images = await uploadImagesToCloudinary(req.files);
     const product = await Product.create({ ...req.body, images });
     return res.status(201).json({ success: true, message: 'Product created.', data: product });
   } catch (err) {
@@ -94,7 +113,7 @@ const updateProduct = async (req, res, next) => {
 
     const updates = { ...req.body };
     if (req.files && req.files.length > 0) {
-      updates.images = req.files.map((f) => `/uploads/${f.filename}`);
+      updates.images = await uploadImagesToCloudinary(req.files);
     }
 
     Object.assign(product, updates);
@@ -117,4 +136,62 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
-module.exports = { getAllProducts, getProductById, getProductBySlug, createProduct, updateProduct, deleteProduct };
+// Admin product list — includes inactive products so the "Active" column can show true/false.
+const getAdminProducts = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, search, status } = req.query;
+    const filter = {};
+    if (search) filter.name = { $regex: search, $options: 'i' };
+    if (status === 'true' || status === 'false') {
+      filter.isActive = status === 'true';
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, products] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter)
+        .populate('category', 'name slug')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+    ]);
+
+    return res.json({
+      success: true,
+      data: products,
+      pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+const toggleProductStatus = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
+    product.isActive = !product.isActive;
+    await product.save();
+    return res.json({
+      success: true,
+      message: `Product ${product.isActive ? 'activated' : 'deactivated'}.`,
+      data: { id: product.id, isActive: product.isActive },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+module.exports = {
+  getAllProducts,
+  getProductById,
+  getProductBySlug,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getAdminProducts,
+  toggleProductStatus,
+};
