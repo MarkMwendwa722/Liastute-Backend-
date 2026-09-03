@@ -103,27 +103,23 @@ const slugify = (str) =>
     .replace(/^-+|-+$/g, ''); // trim leading/trailing hyphens
 
 // Auto-generate slug from name when not provided, and guarantee uniqueness.
-productSchema.pre('validate', async function (next) {
-  try {
-    if (!this.slug) {
-      this.slug = slugify(this.name);
-    }
-    if (!this.slug) {
-      return next(new Error('Unable to generate a slug from the product name.'));
-    }
-
-    let base = this.slug;
-    let slug = base;
-    let counter = 1;
-    while (await Product.exists({ slug, _id: { $ne: this._id } })) {
-      slug = `${base}-${counter}`;
-      counter += 1;
-    }
-    this.slug = slug;
-    return next();
-  } catch (err) {
-    return next(err);
+// Mongoose 9: async pre hooks must NOT use the `next` callback — throw instead.
+productSchema.pre('validate', async function () {
+  if (!this.slug) {
+    this.slug = slugify(this.name);
   }
+  if (!this.slug) {
+    throw new Error('Unable to generate a slug from the product name.');
+  }
+
+  let base = this.slug;
+  let slug = base;
+  let counter = 1;
+  while (await Product.exists({ slug, _id: { $ne: this._id } })) {
+    slug = `${base}-${counter}`;
+    counter += 1;
+  }
+  this.slug = slug;
 });
 
 const Product = mongoose.model('Product', productSchema);
