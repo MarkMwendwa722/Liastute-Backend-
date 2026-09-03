@@ -1,6 +1,6 @@
 const { validationResult } = require('express-validator');
 const cloudinary = require('../config/cloudinary');
-const { Product, Category } = require('../models');
+const { Product, Category, CartItem } = require('../models');
 
 const uploadImageToCloudinary = (file) =>
   new Promise((resolve, reject) => {
@@ -18,6 +18,16 @@ const uploadImagesToCloudinary = async (files) => {
   if (!files || files.length === 0) return [];
   const urls = await Promise.all(files.map(uploadImageToCloudinary));
   return urls;
+};
+
+// Best-effort: delete a product image from Cloudinary by its secure_url.
+// Old local /uploads/... paths and malformed URLs are skipped.
+const deleteCloudinaryImage = (url) => {
+  const m =
+    typeof url === 'string' &&
+    url.match(/\/image\/upload\/(?:v\d+\/)?(.+)\.(?:jpg|jpeg|png|webp)$/i);
+  if (!m) return Promise.resolve();
+  return cloudinary.uploader.destroy(m[1]).catch(() => {});
 };
 
 const getAllProducts = async (req, res, next) => {
@@ -126,11 +136,19 @@ const updateProduct = async (req, res, next) => {
 
 const deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
-    product.isActive = false;
-    await product.save();
-    return res.json({ success: true, message: 'Product deleted.' });
+
+    // Remove the deleted product from all users' carts (no dangling references).
+    await CartItem.deleteMany({ productId: product._id });
+
+    // Clean up the product's images from Cloudinary. Best-effort so the DB
+    // deletion still succeeds even if image cleanup fails.
+    Promise.all((product.images || []).map(deleteCloudinaryImage)).catch((err) =>
+      console.error(`Cloudinary cleanup failed for product ${product._id}:`, err.message),
+    );
+
+    return res.json({ success: true, message: 'Product deleted permanently.' });
   } catch (err) {
     return next(err);
   }
