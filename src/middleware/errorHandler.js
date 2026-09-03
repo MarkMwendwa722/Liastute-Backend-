@@ -28,6 +28,24 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Multer upload errors (file too large, too many files, wrong field name)
+  if (err.name === "MulterError") {
+    const messages = {
+      LIMIT_FILE_SIZE: "File too large. Each image must be 20 MB or less.",
+      LIMIT_FILE_COUNT: "Too many files. Maximum of 10 images per product.",
+      LIMIT_UNEXPECTED_FILE: "Unexpected file field — use the 'images' field for uploads.",
+    };
+    return res.status(400).json({ success: false, message: messages[err.code] || err.message });
+  }
+
+  // Truncated multipart body (upload aborted mid-stream, e.g. file exceeded limit)
+  if (err instanceof Error && err.message === "Unexpected end of form") {
+    return res.status(400).json({
+      success: false,
+      message: "Upload was interrupted. The image may exceed the 20 MB size limit.",
+    });
+  }
+
   const status = err.status || err.statusCode || 500;
 
   const exposeMessage = status < 500 || err.expose === true || isDev;
