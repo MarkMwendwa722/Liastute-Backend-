@@ -38,11 +38,14 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ success: false, message: messages[err.code] || err.message });
   }
 
-  // Truncated multipart body (upload aborted mid-stream, e.g. file exceeded limit)
+  // Truncated multipart body — the request ended before busboy parsed a full form.
+  // NOT a file-size problem (that surfaces as MulterError above). Typically the
+  // client aborted the upload, a proxy cut the body, or the multipart body is malformed.
   if (err instanceof Error && err.message === "Unexpected end of form") {
     return res.status(400).json({
       success: false,
-      message: "Upload was interrupted. The image may exceed the 20 MB size limit.",
+      message:
+        "Upload was interrupted before it completed. Check that the client sends FormData without manually setting the Content-Type header, then retry.",
     });
   }
 
