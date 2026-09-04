@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { validationResult } = require('express-validator');
 const cloudinary = require('../config/cloudinary');
 const { Product, Category, CartItem } = require('../models');
@@ -30,6 +31,36 @@ const deleteCloudinaryImage = (url) => {
   return cloudinary.uploader.destroy(m[1]).catch(() => {});
 };
 
+// Resolve a category reference that may be either the Mongo `_id` or the slug
+// (e.g. "sports-outdoors") into its ObjectId. Returns null when the value is
+// missing/empty OR doesn't match a real category.
+const findCategoryId = async (value) => {
+  if (value === undefined || value === null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  let category = null;
+  if (mongoose.Types.ObjectId.isValid(raw)) {
+    category = await Category.findById(raw).select('_id').lean();
+  } else {
+    category = await Category.findOne({ slug: raw }).select('_id').lean();
+  }
+  return category ? category._id : null;
+};
+
+// Like findCategoryId but for create/update: throws a clear 400 if a value was
+// provided yet no category matches (so typos in slugs don't silently save null).
+const categoryIdForWrite = async (raw) => {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const id = await findCategoryId(raw);
+  if (!id) {
+    const err = new Error('Category not found. Provide a valid category id or slug.');
+    err.status = 400;
+    throw err;
+  }
+  return id;
+};
+
 const getAllProducts = async (req, res, next) => {
   try {
     const {
@@ -44,8 +75,24 @@ const getAllProducts = async (req, res, next) => {
       featured,
     } = req.query;
 
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
     const filter = { isActive: true };
-    if (category) filter.categoryId = category;
+    if (category) {
+      const categoryId = await findCategoryId(category);
+      // An id/slug that doesn't match a real category → return nothing. We must
+      // NOT fall back to null, which would wrongly match products without a
+      // category.
+      if (!categoryId) {
+        return res.json({
+          success: true,
+          data: [],
+          pagination: { total: 0, page: pageNum, limit: limitNum, pages: 0 },
+        });
+      }
+      filter.categoryId = categoryId;
+    }
     if (search) filter.name = { $regex: search, $options: 'i' };
     if (minPrice || maxPrice) {
       filter.price = {};
@@ -58,8 +105,6 @@ const getAllProducts = async (req, res, next) => {
     const sortField = allowedSort.includes(sortBy) ? sortBy : 'createdAt';
     const sortOrder = order.toUpperCase() === 'ASC' ? 1 : -1;
 
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [total, products] = await Promise.all([
@@ -109,7 +154,9 @@ const createProduct = async (req, res, next) => {
     }
 
     const images = await uploadImagesToCloudinary(req.files);
-    const product = await Product.create({ ...req.body, images });
+    const { categoryId: rawCategoryId, ...productData } = req.body;
+    const categoryId = await categoryIdForWrite(rawCategoryId);
+    const product = await Product.create({ ...productData, categoryId, images });
     return res.status(201).json({ success: true, message: 'Product created.', data: product });
   } catch (err) {
     return next(err);
@@ -124,6 +171,9 @@ const updateProduct = async (req, res, next) => {
     const updates = { ...req.body };
     if (req.files && req.files.length > 0) {
       updates.images = await uploadImagesToCloudinary(req.files);
+    }
+    if (updates.categoryId !== undefined) {
+      updates.categoryId = await categoryIdForWrite(updates.categoryId);
     }
 
     Object.assign(product, updates);
